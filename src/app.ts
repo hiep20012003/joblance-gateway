@@ -1,10 +1,9 @@
 import express, { Express } from 'express';
-import { createLogger } from '@hiep20012003/joblance-shared';
+import { Logger } from '@hiep20012003/joblance-shared';
 
 import { GatewayServer } from './server';
-// import { config } from '@gateway/config';
 
-export const logger = createLogger('GatewayService');
+export const logger = new Logger('GatewayService');
 
 class Application {
   public initialize(): void {

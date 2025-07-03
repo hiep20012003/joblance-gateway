@@ -9,10 +9,10 @@ import compression from 'compression';
 import { StatusCodes } from 'http-status-codes';
 import { config } from '@gateway/config';
 // import { elasticsearch } from './elasticsearch';
-import { CustomError, IErrorResponse } from '@hiep20012003/joblance-shared';
-
-import { appRoutes } from './routes';
-import { logger } from './app';
+import {  DependencyError, NotFoundError, ServerError } from '@hiep20012003/joblance-shared';
+import { appRoutes } from '@gateway/routes';
+import { logger } from '@gateway/app';
+import errorHandler from '@gateway/middlewares/errorHandler.middleware';
 
 const SERVER_PORT = config.PORT || 4000;
 
@@ -68,40 +68,53 @@ export class GatewayServer {
   //   elasticsearch.checkConnection();
   // }
 
-  private errorHandler(app: Application): void {
-    app.use('*', (req: Request, res: Response, next: NextFunction) => {
-      const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-      logger.error(`Endpoint not found: ${fullUrl}`);
-      res.status(StatusCodes.NOT_FOUND).json({ message: 'The requested endpoint does not exist.' });
-      next();
+private errorHandler(app: Application): void {
+  app.use('*', (req: Request, res: Response, _next: NextFunction) => {
+    const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+    const notFoundError = new NotFoundError(
+      `Endpoint not found: ${fullUrl}`,
+      'GatewayService.errorHandler',
+      'ENDPOINT_NOT_FOUND'
+    );
+
+    logger.error(notFoundError);
+
+    res.status(StatusCodes.NOT_FOUND).json(notFoundError.serialize());
+  });
+
+  app.use(errorHandler);
+}
+
+
+private async startServer(app: Application): Promise<void> {
+  try {
+    const httpServer: http.Server = new http.Server(app);
+    await this.startHttpServer(httpServer);
+  } catch (error) {
+    const err = new ServerError(
+      'Failed to start GatewayService server',
+      'GatewayService.startServer',
+      'SERVER_START_FAILURE'
+    );
+    logger.error(err);
+  }
+}
+
+private async startHttpServer(httpServer: http.Server): Promise<void> {
+  try {
+    logger.info(`Gateway server started with process id ${process.pid}`);
+    httpServer.listen(SERVER_PORT, () => {
+      logger.info(`Gateway server is running on port ${SERVER_PORT}`);
     });
-
-    app.use((error: IErrorResponse, _req: Request, res: Response, next: NextFunction) => {
-      logger.error(`Error occurred in GatewayService${error.comingFrom ? ` (${error.comingFrom})` : ''}:`, error);
-      if (error instanceof CustomError) {
-        res.status(error.statusCode).json(error.serializeErrors());
-      }
-      next();
-    });
+  } catch (error) {
+    const err = new DependencyError(
+      'Failed to bind HTTP port',
+      'GatewayService.startHttpServer',
+      'PORT_BIND_FAILURE'
+    );
+    logger.error(err);
   }
+}
 
-  private async startServer(app: Application): Promise<void> {
-    try {
-      const httpServer: http.Server = new http.Server(app);
-      await this.startHttpServer(httpServer);
-    } catch (error) {
-      logger.error('Error while starting GatewayService server:', error);
-    }
-  }
-
-  private async startHttpServer(httpServer: http.Server): Promise<void> {
-    try {
-      logger.info(`Gateway server started with process id ${process.pid}`);
-      httpServer.listen(SERVER_PORT, () => {
-        logger.info(`Gateway server is running on port ${SERVER_PORT}`);
-      });
-    } catch (error) {
-      logger.error('Error while starting HTTP server:', error);
-    }
-  }
 }
