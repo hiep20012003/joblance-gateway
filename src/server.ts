@@ -6,12 +6,10 @@ import hpp from 'hpp';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
-import { StatusCodes } from 'http-status-codes';
 import { config } from '@gateway/config';
-// import { elasticsearch } from './elasticsearch';
-import { DependencyError, errorHandler, NotFoundError, ServerError } from '@hiep20012003/joblance-shared';
+import { ApplicationError, DependencyError, NotFoundError, ServerError, ErrorResponse, ResponseOptions } from '@hiep20012003/joblance-shared';
 import { appRoutes } from '@gateway/routes';
-import { logger } from '@gateway/app';
+import { AppLogger } from '@gateway/utils/logger';
 
 const SERVER_PORT = config.PORT || 4000;
 
@@ -22,12 +20,16 @@ export class GatewayServer {
     this.app = app;
   }
 
-  public start(): void {
+  public async start(): Promise<void> {
+    const operation = 'gateway-server-start';
+
     this.securityMiddleware(this.app);
-    this.standarMiddleware(this.app);
+    this.standardMiddleware(this.app);
     this.routesMiddleware(this.app);
-    this.errorHandlerMiddleware(this.app);
-    this.startServer(this.app);
+    this.errorHandler(this.app);
+    this.startServer(this.app, operation);
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   private securityMiddleware(app: Application): void {
@@ -38,7 +40,6 @@ export class GatewayServer {
         keys: [`${config.SECRET_KEY_ONE}`, `${config.SECRET_KEY_TWO}`],
         maxAge: 24 * 7 * 3600000,
         secure: config.NODE_ENV !== 'development'
-        // sameSite: none
       })
     );
     app.use(hpp());
@@ -52,7 +53,7 @@ export class GatewayServer {
     );
   }
 
-  private standarMiddleware(app: Application): void {
+  private standardMiddleware(app: Application): void {
     app.use(compression());
     app.use(json({ limit: '200mb' }));
     app.use(urlencoded({ extended: true, limit: '200mb' }));
@@ -62,57 +63,93 @@ export class GatewayServer {
     appRoutes(app);
   }
 
-  // private startElasticSearch(): void {
-  //   elasticsearch.checkConnection();
-  // }
+  private errorHandler(app: Application): void {
+    app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+      const operation = 'gateway-server-handle-error';
 
-  private errorHandlerMiddleware(app: Application): void {
-    app.use('*', (req: Request, res: Response, _next: NextFunction) => {
-      const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-
-      const notFoundError = new NotFoundError(
-        `Endpoint not found: ${fullUrl}`,
-        'GatewayService.errorHandler',
-        'ENDPOINT_NOT_FOUND'
+      AppLogger.error(
+        `API ${req.originalUrl} unexpected error`,
+        {
+          req,
+          operation,
+          error: err instanceof ApplicationError ? err.serialize() : {
+            name: (err as Error).name,
+            message: (err as Error).message,
+            stack: (err as Error).stack,
+          }
+        }
       );
 
-      logger.error(notFoundError);
-
-      res.status(StatusCodes.NOT_FOUND).json(notFoundError.serialize());
+      if (err instanceof ApplicationError) {
+        new ErrorResponse({
+          ...err.serializeForClient() as ResponseOptions
+        }).send(res);
+      } else {
+        const serverError = new ServerError({
+          clientMessage: 'Internal server error',
+          cause: err,
+          operation
+        });
+        new ErrorResponse({
+          ...serverError.serializeForClient() as ResponseOptions
+        }).send(res);
+      }
     });
 
-    app.use(errorHandler(logger));
+    app.use('/*splat', (req: Request, res: Response, _next: NextFunction) => {
+      const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+      const operation = 'gateway-server-route-not-found';
+
+      const err = new NotFoundError({
+        clientMessage: `Endpoint not found: ${fullUrl}`,
+        operation
+      });
+
+      AppLogger.error(
+        `API ${req.originalUrl} route not found`,
+        {
+          req,
+          operation,
+          error: err instanceof ApplicationError ? err.serialize() : {
+            name: (err as Error).name,
+            message: (err as Error).message,
+            stack: (err as Error).stack,
+          }
+        }
+      );
+      new ErrorResponse({
+        ...err.serializeForClient() as ResponseOptions
+      }).send(res);
+    });
   }
 
 
-  private async startServer(app: Application): Promise<void> {
+  private startServer(app: Application, operation: string): void {
     try {
       const httpServer: http.Server = new http.Server(app);
-      await this.startHttpServer(httpServer);
+      this.startHttpServer(httpServer, operation);
     } catch (error) {
-      const err = new ServerError(
-        'Failed to start GatewayService server',
-        'GatewayService.startServer',
-        'SERVER_START_FAILURE'
-      );
-      logger.error(err);
+      throw new ServerError({
+        clientMessage: 'Failed to start GatewayService server',
+        cause: error,
+        operation: 'gateway-server-error'
+      });
     }
   }
 
-  private async startHttpServer(httpServer: http.Server): Promise<void> {
+  private startHttpServer(httpServer: http.Server, operation: string): void {
     try {
-      logger.info(`Gateway server started with process id ${process.pid}`);
+      AppLogger.info(`Gateway server started with process id ${process.pid}`, { operation });
+
       httpServer.listen(SERVER_PORT, () => {
-        logger.info(`Gateway server is running on port ${SERVER_PORT}`);
+        AppLogger.info(`Gateway server is running on port ${SERVER_PORT}`, { operation });
       });
     } catch (error) {
-      const err = new DependencyError(
-        'Failed to bind HTTP port',
-        'GatewayService.startHttpServer',
-        'PORT_BIND_FAILURE'
-      );
-      logger.error(err);
+      throw new DependencyError({
+        clientMessage: 'Failed to bind HTTP port',
+        cause: error,
+        operation: 'gateway-server-bind-error'
+      });
     }
   }
-
 }

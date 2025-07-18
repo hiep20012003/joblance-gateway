@@ -1,0 +1,15 @@
+### Set base URL
+@baseUrl = http://localhost:4000/auth
+
+### Create User Role
+POST {{baseUrl}}/signup
+Content-Type: application/json
+
+{
+  "username": "",
+  "email": "",
+  "password": ""
+}
+
+###
+GET {{baseUrl}}/gateway-health

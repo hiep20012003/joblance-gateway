@@ -7,6 +7,7 @@ export class AxiosService {
 
   constructor(baseUrl: string, serviceName: string) {
     this.axios = this.axiosCreateInstance(baseUrl, serviceName);
+    console.log(baseUrl);
   }
 
   public axiosCreateInstance(baseUrl: string, serviceName?: string): ReturnType<typeof axios.create> {
