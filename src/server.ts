@@ -10,6 +10,7 @@ import { config } from '@gateway/config';
 import { ApplicationError, DependencyError, NotFoundError, ServerError, ErrorResponse, ResponseOptions } from '@hiep20012003/joblance-shared';
 import { appRoutes } from '@gateway/routes';
 import { AppLogger } from '@gateway/utils/logger';
+import { isAxiosError } from 'axios';
 
 const SERVER_PORT = config.PORT || 4000;
 
@@ -64,6 +65,31 @@ export class GatewayServer {
   }
 
   private errorHandler(app: Application): void {
+    app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+
+      if (isAxiosError(err) && err.response?.data) {
+        const errorResponse: ResponseOptions = err.response?.data as ResponseOptions;
+        AppLogger.warn(
+          errorResponse.message,
+          {
+            req,
+            operation: 'external-service-error',
+            metadata: {
+              service: req.service,
+              ...errorResponse
+            }
+          }
+        );
+        new ErrorResponse({
+          ...errorResponse
+        }).send(res);
+        return;
+      }
+
+      next();
+    });
+
+
     app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
       const operation = 'gateway-server-handle-error';
 

@@ -25,6 +25,10 @@ export class AuthRoute {
   }
 
   routes(): Router {
+    this.router.use((req, _res, next) => {
+      req.service = 'auth-service';
+      next();
+    });
     this.router.post('/signup', handleAsyncError(this.authController.signUp));
     // Add more auth-related routes here
     return this.router;

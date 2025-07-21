@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { SignUpRequest } from '@hiep20012003/joblance-shared';
+import { SignUpRequest, toKebabCase } from '@hiep20012003/joblance-shared';
 import { AppLogger } from '@gateway/utils/logger';
 import { AuthService } from '@gateway/services/api/auth.service';
 
@@ -16,12 +16,10 @@ export class AuthController {
     const response = await this.authService.signUp(requestData);
 
     AppLogger.info(
-      `API ${req.originalUrl} request completed`,
+      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
       {
         operation: 'auth-signup-request',
-        metadata: {
-          ...response
-        }
+        metadata: { ...response.data }
       }
     );
 
