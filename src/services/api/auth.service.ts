@@ -1,5 +1,4 @@
-import { DependencyError, IUserResponse, SignUpRequest } from '@hiep20012003/joblance-shared';
-import { AxiosResponse, isAxiosError } from 'axios';
+import { AxiosResponse } from 'axios';
 
 import { AxiosService } from '../axios.service';
 
@@ -10,20 +9,33 @@ export class AuthService {
     this.axiosService = axiosService;
   }
 
-  async signUp(requestData: SignUpRequest): Promise<AxiosResponse<IUserResponse>> {
-    try {
-      const response: AxiosResponse<IUserResponse> = await this.axiosService.axios.post('/signup', requestData);
-      return response;
-    } catch (error) {
-      if (isAxiosError(error) && error.response) {
-        throw error;
-      }
-      throw new DependencyError({
-        clientMessage: 'Unable to process your request at the moment.',
-        logMessage: 'POST /signup request to Auth Service failed',
-        operation: 'auth-signup-request',
-        cause: error
-      });
-    }
+  async signUp(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/signup', requestData);
+    return response;
+  }
+
+  async signIn(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/signin', requestData);
+    return response;
+  }
+
+  async resendEmailVerification(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/resend-verification', requestData);
+    return response;
+  }
+
+  async verifyEmail(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/verify-email', requestData);
+    return response;
+  }
+
+  async refreshToken(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/refresh-token', requestData);
+    return response;
+  }
+
+  async logout(requestData: unknown): Promise<AxiosResponse> {
+    const response: AxiosResponse = await this.axiosService.axios.post('/logout', requestData);
+    return response;
   }
 }

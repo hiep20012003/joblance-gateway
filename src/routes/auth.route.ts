@@ -24,15 +24,20 @@ export class AuthRoute {
     this.routes();
   }
 
-  routes(): Router {
+  routes = (): Router => {
     this.router.use((req, _res, next) => {
       req.service = 'auth-service';
       next();
     });
-    this.router.post('/signup', handleAsyncError(this.authController.signUp));
+    this.router.post('/auth/signup', handleAsyncError(this.authController.signUp));
+    this.router.post('/auth/signin', handleAsyncError(this.authController.signIn));
+    this.router.post('/auth/refresh-token', handleAsyncError(this.authController.refreshToken));
+    this.router.post('/auth/logout', handleAsyncError(this.authController.logout)); // Added logout route
+    this.router.post('/auth/resend-verification', handleAsyncError(this.authController.resendEmailVerification));
+    this.router.post('/auth/verify-email', handleAsyncError(this.authController.verifyEmail));
     // Add more auth-related routes here
     return this.router;
-  }
+  };
 }
 
 export const authRoute: AuthRoute = new AuthRoute();

@@ -2,6 +2,7 @@ import http from 'http';
 
 import { Application, json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieSession from 'cookie-session';
+import cookieParser from 'cookie-parser';
 import hpp from 'hpp';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -55,6 +56,7 @@ export class GatewayServer {
   }
 
   private standardMiddleware(app: Application): void {
+    app.use(cookieParser());
     app.use(compression());
     app.use(json({ limit: '200mb' }));
     app.use(urlencoded({ extended: true, limit: '200mb' }));
@@ -86,7 +88,7 @@ export class GatewayServer {
         return;
       }
 
-      next();
+      next(err);
     });
 
 
