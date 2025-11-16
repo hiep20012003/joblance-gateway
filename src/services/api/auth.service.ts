@@ -1,41 +1,51 @@
-import { AxiosResponse } from 'axios';
+import {AxiosService} from '@gateway/services/axios.service';
+import {IAuth} from '@hiep20012003/joblance-shared';
 
-import { AxiosService } from '../axios.service';
+export class AuthService extends AxiosService {
 
-export class AuthService {
-  private readonly axiosService: AxiosService;
-
-  constructor(axiosService: AxiosService) {
-    this.axiosService = axiosService;
+  async getUserById(userId: string) {
+    return this.request('get', `/users/${userId}`);
   }
 
-  async signUp(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/signup', requestData);
-    return response;
+  async signUp(payload: IAuth) {
+    return this.request('post', '/users', payload);
   }
 
-  async signIn(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/signin', requestData);
-    return response;
+  async login(payload: IAuth) {
+    return this.request('post', '/login', payload);
   }
 
-  async resendEmailVerification(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/resend-verification', requestData);
-    return response;
+  async refreshToken(refreshToken: string) {
+    return this.request('post', '/refresh', {token: refreshToken});
   }
 
-  async verifyEmail(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/verify-email', requestData);
-    return response;
+  async logout() {
+    return await this.request('post', `/logout`);
   }
 
-  async refreshToken(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/refresh-token', requestData);
-    return response;
+  async changePassword(payload: unknown) {
+    return this.request('post', `/users/password/change`, payload);
   }
 
-  async logout(requestData: unknown): Promise<AxiosResponse> {
-    const response: AxiosResponse = await this.axiosService.axios.post('/logout', requestData);
-    return response;
+  async forgotPassword(email: string) {
+    return this.request('post', '/tokens/password', {email});
   }
+
+  async validateResetPasswordToken(token: string) {
+    return this.request('post', `/tokens/password/validate`, {token});
+  }
+
+  async resetPassword(payload: unknown) {
+    return this.request('post', `/users/password/reset`, payload);
+  }
+
+  async resendEmailVerification(email: string) {
+    return this.request('post', '/tokens/email/resend', {email});
+  }
+
+  async verifyEmail(payload: unknown) {
+    return this.request('post', `/users/email/verify`, payload);
+  }
+
+
 }

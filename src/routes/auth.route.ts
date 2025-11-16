@@ -1,23 +1,17 @@
-import express, { Router } from 'express';
-import { config } from '@gateway/config';
-import { handleAsyncError } from '@hiep20012003/joblance-shared';
+import express, {Router} from 'express';
+import {config} from '@gateway/config';
+import {handleAsyncError} from '@hiep20012003/joblance-shared';
 
-import { AuthController } from '../controllers/auth.controller';
-import { AuthService } from '../services/api/auth.service';
-import { AxiosService } from '../services/axios.service';
+import {AuthController} from '../controllers/auth.controller';
+import {AuthService} from '../services/api/auth.service';
+import {authNotRefreshMiddleware} from '@gateway/middlewares/auth-not-refresh.middleware';
 
 export class AuthRoute {
   private readonly authController: AuthController;
   public router: Router;
 
   constructor() {
-    // Initialize AxiosService with config
-    const axiosService = new AxiosService(`${config.AUTH_BASE_URL}/api/v1/auth`, 'auth');
-
-    // Initialize AuthService with AxiosService
-    const authService = new AuthService(axiosService);
-
-    // Initialize AuthController with AuthService
+    const authService = new AuthService(`${config.AUTH_BASE_URL}/api/v1`);
     this.authController = new AuthController(authService);
 
     this.router = express.Router();
@@ -26,16 +20,32 @@ export class AuthRoute {
 
   routes = (): Router => {
     this.router.use((req, _res, next) => {
-      req.service = 'auth-service';
+      req.audience = 'auth';
       next();
     });
-    this.router.post('/auth/signup', handleAsyncError(this.authController.signUp));
-    this.router.post('/auth/signin', handleAsyncError(this.authController.signIn));
-    this.router.post('/auth/refresh-token', handleAsyncError(this.authController.refreshToken));
-    this.router.post('/auth/logout', handleAsyncError(this.authController.logout)); // Added logout route
-    this.router.post('/auth/resend-verification', handleAsyncError(this.authController.resendEmailVerification));
-    this.router.post('/auth/verify-email', handleAsyncError(this.authController.verifyEmail));
-    // Add more auth-related routes here
+    this.router.get('/users/:userId', handleAsyncError(this.authController.getUserById));
+    this.router.post('/users', handleAsyncError(this.authController.signUp));
+    this.router.post('/login', handleAsyncError(this.authController.signIn));
+    this.router.post('/refresh', handleAsyncError(this.authController.refreshToken));
+    this.router.post('/logout', authNotRefreshMiddleware, handleAsyncError(this.authController.logout));
+    this.router.post('/users/password/change', authNotRefreshMiddleware, handleAsyncError(this.authController.changePassword));
+    this.router.post('/tokens/password', handleAsyncError(this.authController.forgotPassword));
+    this.router.post(
+      '/tokens/password/validate',
+      handleAsyncError(this.authController.validateResetPasswordToken)
+    );
+    this.router.post(
+      '/users/password/reset',
+      handleAsyncError(this.authController.resetPassword)
+    );
+    this.router.post(
+      '/tokens/email/resend',
+      handleAsyncError(this.authController.resendEmailVerification)
+    );
+    this.router.post(
+      '/users/email/verify',
+      handleAsyncError(this.authController.verifyEmail)
+    );
     return this.router;
   };
 }

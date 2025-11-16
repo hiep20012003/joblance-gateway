@@ -1,131 +1,228 @@
-import { Request, Response, NextFunction } from 'express';
-import { toKebabCase } from '@hiep20012003/joblance-shared';
-import { AppLogger } from '@gateway/utils/logger';
-import { AuthService } from '@gateway/services/api/auth.service';
+import {NextFunction, Request, Response} from 'express';
+import {BaseController} from '@gateway/controllers/base.controller';
+import {AuthService} from '@gateway/services/api/auth.service';
+import {cacheStore} from '@gateway/cache/redis.connection';
+import {
+  IAuth, IAuthDocument,
+  JwtPayload,
+  SuccessResponse
+} from '@hiep20012003/joblance-shared';
+import {ReasonPhrases, StatusCodes} from 'http-status-codes';
+import {GatewayServer} from '@gateway/server';
 
-export class AuthController {
+export class AuthController extends BaseController {
   private readonly authService: AuthService;
 
   constructor(authService: AuthService) {
+    super();
     this.authService = authService;
   }
 
-  public signUp = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+  public async removeLoggedInUser(req: Request, res: Response): Promise<void> {
+    const response = await cacheStore.removeLoggedInUserFromCache('loggedInUsers', req.params.username);
+    GatewayServer.SocketsIOHandler.getSocketIO().emit('online', response);
+    new SuccessResponse({
+      message: 'User is offline', statusCode: StatusCodes.OK, reasonPhrase: ReasonPhrases.OK
+    }).send(res);
+  }
 
-    const response = await this.authService.signUp(req.body);
-
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-signup-request',
-        metadata: response.data as Record<string, unknown>
-      }
+  public getUserById = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'me'),
+      async (forwardedHeader) => {
+        return this.authService.setHeader(forwardedHeader).getUserById(req.params.userId);
+      },
     );
-
-    res.status(response.status).json(response.data);
   };
+
+  public validateResetPasswordToken = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'validate-reset-token'),
+      async (forwardedHeader) => {
+        return this.authService.setHeader(forwardedHeader).validateResetPasswordToken(req.body.token as string);
+      },
+    );
+  };
+
+  public signUp = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'signup'),
+      async (forwardedHeader) => {
+        const payload = req.body as IAuth;
+        return this.authService.setHeader(forwardedHeader).signUp(payload);
+      },
+    );
+  };
+
+  public signIn = async (req: Request, res: Response): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'signin'),
+      async (forwardedHeader) => {
+        const payload = req.body as IAuth;
+
+        const [authResult] = await Promise.all([
+          this.authService.setHeader(forwardedHeader).login(payload)
+        ]);
+
+        const {user, refreshToken, accessToken} = authResult.data as
+          {
+            user: IAuthDocument, refreshToken: { token: string; exp: number };
+            accessToken: { token: string; exp: number };
+          };
+
+        req.session = {accessToken: accessToken.token, refreshToken: refreshToken.token};
+
+        // if (user.id) {
+        //   const loggedInUsers = await cacheStore.saveLoggedInUserToCache('loggedInUsers', user.id);
+        //   GatewayServer.SocketsIOHandler.getSocketIO().emit('online', loggedInUsers);
+        // }
+
+        await cacheStore.setEx(
+          `auth:refresh_token:user:${user.id}`,
+          refreshToken.exp - Math.floor(Date.now() / 1000),
+          refreshToken.token
+        );
+
+        return {
+          status: authResult.status,
+          data: {
+            user,
+            accessTokenExp: accessToken.exp,
+            refreshTokenExp: refreshToken.exp,
+          }
+        };
+      },
+    );
+  };
+
+  public refreshToken = async (req: Request, res: Response): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'refresh'),
+      async (forwardedHeader) => {
+
+        const {refreshToken} = req.session as {
+          refreshToken: string
+        };
+
+        const result = await this.authService.setHeader(forwardedHeader).refreshToken(refreshToken);
+
+        req.session = {accessToken: result.data.accessToken.token, refreshToken: result.data.refreshToken.token};
+
+        // if (result?.data?.user?.id) {
+        //   const loggedInUsers = await cacheStore.saveLoggedInUserToCache('loggedInUsers', result.data.user.id as string);
+        //   GatewayServer.SocketsIOHandler.getSocketIO().emit('online', loggedInUsers);
+        // }
+
+        await cacheStore.setEx(
+          `auth:refresh_token:user:${result.data.user.id}`,
+          result.data.refreshToken.exp - Math.floor(Date.now() / 1000),
+          result.data.refreshToken.token as string,
+        );
+
+        return {
+          status: result.status,
+          data: {
+            user: result.data.user,
+            accessTokenExp: result.data.accessToken.exp,
+            refreshTokenExp: result.data.refreshToken.exp,
+          }
+        };
+      },
+    );
+  };
+
 
   public logout = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const { refreshToken } = req.cookies;
-    const response = await this.authService.logout({ refreshToken: refreshToken as string });
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'logout'),
+      async (forwardedHeader) => {
+        const {jti, exp} = req.currentUser as JwtPayload;
 
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      path: '/api/v1/auth/refresh-token'
-    });
+        const response = await this.authService.setHeader(forwardedHeader).logout();
+        //
+        // const loggedInUsers = await cacheStore.removeLoggedInUserFromCache('loggedInUsers', username!);
+        // GatewayServer.SocketsIOHandler.getSocketIO().emit('online', loggedInUsers);
 
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-logout-request',
-        metadata: { userId: 'unknown' } // User ID might not be available directly from cookie
-      }
+        const now = Math.floor(Date.now() / 1000);
+        const remainingTTL = (exp ?? now) - now;
+        await cacheStore.setEx(`blacklist:access:${jti}`, remainingTTL, '1');
+
+        req.session = null;
+        return response;
+      },
     );
-
-    res.status(response.status).json({ message: 'Logged out successfully' });
   };
 
-  public signIn = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const response = await this.authService.signIn(req.body);
-    const data = response.data as { refreshToken: string; [key: string]: unknown };
-    const { refreshToken, ...rest } = data;
+  public forgotPassword = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'forgot-password'),
+      async (forwardedHeader) => {
+        const {email} = req.body as IAuth;
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      path: '/api/v1/auth/refresh-token', // Or a more generic path if needed
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-signin-request',
-        metadata: rest as Record<string, unknown>
+        return this.authService.setHeader(forwardedHeader).forgotPassword(email!);
       }
     );
-
-    res.status(response.status).json(rest);
   };
 
-  public refreshToken = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const { refreshToken: oldRefreshToken } = req.cookies;
-    const response = await this.authService.refreshToken({ refreshToken: oldRefreshToken as string });
+  public resetPassword = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'reset-password'),
+      async (forwardedHeader) => {
+        const payload = req.body as IAuth;
 
-    const { accessToken, refreshToken: newRefreshToken } = response.data as {
-      accessToken: string,
-      refreshToken: string
-    };
-
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      path: '/api/v1/auth/refresh-token',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-refresh-token-request',
-        metadata: { accessToken }
+        return this.authService.setHeader(forwardedHeader).resetPassword(payload);
       }
     );
-
-    res.status(response.status).json({ accessToken });
   };
 
   public resendEmailVerification = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-
-    const response = await this.authService.resendEmailVerification(req.body);
-
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-resend-email-verification-request',
-        metadata: response.data as Record<string, unknown>
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'resend-email-verification'),
+      async (forwardedHeader) => {
+        const {email} = req.body as IAuth;
+        return this.authService.setHeader(forwardedHeader).resendEmailVerification(email!);
       }
     );
-
-    res.status(response.status).json(response.data);
   };
 
   public verifyEmail = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-
-    const response = await this.authService.verifyEmail(req.body);
-
-    AppLogger.info(
-      `${req.method.toUpperCase()} ${req.originalUrl} request to [${toKebabCase(this.authService.constructor.name)}] completed`,
-      {
-        operation: 'auth-verify-email-request',
-        metadata: response.data as Record<string, unknown>
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'verify-email'),
+      async (forwardedHeader) => {
+        res.cookie('verificationEmailSuccess', true, {httpOnly: false, secure: false, maxAge: 60 * 60 * 1000});
+        return this.authService.setHeader(forwardedHeader).verifyEmail(req.body);
       }
     );
+  };
 
-    res.status(response.status).json(response.data);
+  public changePassword = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    await this.handleRequest(
+      req,
+      res,
+      this.buildOperation('auth', 'user', 'change-password'),
+      async (forwardedHeader) => {
+        return this.authService.setHeader(forwardedHeader).changePassword(req.body);
+      }
+    );
   };
 }

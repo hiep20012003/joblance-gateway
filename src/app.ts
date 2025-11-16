@@ -1,9 +1,11 @@
-import express, { Express } from 'express';
-import { GatewayServer } from '@gateway/server';
-import { AppLogger } from '@gateway/utils/logger';
+import '@elastic/opentelemetry-node';
+
+import express, {Express} from 'express';
+import {GatewayServer} from '@gateway/server';
+import {AppLogger} from '@gateway/utils/logger';
 
 class Application {
-  private app: Express;
+  private readonly app: Express;
   private server: GatewayServer;
 
   constructor() {
@@ -12,13 +14,13 @@ class Application {
   }
 
   public async initialize(): Promise<void> {
-    const operation = 'gateway-service-init';
+    const operation = 'app:init';
 
     try {
       await this.server.start();
-      AppLogger.info('Gateway Service initialized', { operation });
+      AppLogger.info('Gateway Service initialized', {operation});
     } catch (error) {
-      AppLogger.error('', { operation, error });
+      AppLogger.error('', {operation, error});
       process.exit(1);
     }
   }
@@ -31,17 +33,14 @@ async function bootstrap(): Promise<void> {
 
 // ---- Global error handlers ---- //
 process.on('uncaughtException', (error) => {
-  AppLogger.error('', { operation: 'gateway-service-uncaught-exception', error });
-  process.exit(1);
+  AppLogger.error('', {operation: 'app:uncaught-exception', error});
 });
 
 process.on('unhandledRejection', (reason) => {
-  AppLogger.error('', { operation: 'gateway-service-unhandled-rejection', error: reason });
-  process.exit(1);
+  AppLogger.error('', {operation: 'app:unhandled-rejection', error: reason});
 });
 
 // ---- App Entry Point ---- //
 bootstrap().catch((error) => {
-  AppLogger.error('', { operation: 'gateway-service-bootstrap-failed', error });
-  process.exit(1);
+  AppLogger.error('', {operation: 'app:bootstrap-failed', error});
 });
