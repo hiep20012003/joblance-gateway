@@ -30,7 +30,8 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            nguyendunghiep20012003/joblance:${{ github.ref_name }}
-            nguyendunghiep20012003/joblance:latest
-          build-args: |
-            NPM_TOKEN=${{ secrets.NPM_TOKEN }}
+            nguyendunghiep20012003/joblance/gateway:${{ github.ref_name }}
+            nguyendunghiep20012003/joblance/gateway:latest
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
