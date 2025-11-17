@@ -50,10 +50,11 @@ export class GatewayServer {
         name: 'session',
         keys: [`${config.SECRET_KEY_ONE}`, `${config.SECRET_KEY_TWO}`],
         maxAge: 24 * 7 * 3600000,
-        sameSite: 'lax',
         secure: config.NODE_ENV !== 'dev',
-        ...(config.NODE_ENV !== 'dev' && {
+        ...(config.NODE_ENV !== 'dev' ? {
           sameSite: 'none'
+        } : {
+          sameSite: 'lax',
         })
       })
     );

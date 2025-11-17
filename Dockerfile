@@ -21,7 +21,7 @@ FROM node:22-slim
 
 WORKDIR /app
 
-COPY --from=builder /app/build ./build
+COPY --from=builder /app/build ./src
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 
@@ -29,4 +29,4 @@ RUN npm install -g pm2
 
 EXPOSE 4000
 
-ENTRYPOINT ["pm2-runtime", "start", "./build/app.js"]
+ENTRYPOINT ["pm2-runtime", "start", "./src/app.js"]
