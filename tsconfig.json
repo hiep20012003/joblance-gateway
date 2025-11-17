@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": [
+      "ES2022"
+    ],
     "rootDir": "./src",
     "outDir": "./build",
-    "target": "ES2020",
-    "module": "ES2020",
-    "lib": [
-      "ES2020",
-      "DOM"
-    ],
-    "baseUrl": ".",
+    "baseUrl": "./src",
     "sourceMap": true,
     "declaration": true,
     "strict": true,
@@ -26,24 +26,16 @@
     "skipLibCheck": true,
     "paths": {
       "@gateway/*": [
-        "./src/*"
+        "*"
       ]
-    },
-    "plugins": [
-      {
-        "transform": "typescript-transform-paths"
-      },
-      {
-        "transform": "typescript-transform-paths",
-        "afterDeclarations": true
-      }
-    ]
+    }
   },
   "include": [
     "./src/**/*"
   ],
   "exclude": [
     "node_modules",
-    "build"
+    "build",
+    "dist"
   ]
 }
