@@ -65,59 +65,59 @@ export const seedAllServices = async (req: Request, res: Response) => {
       AppLogger.info(`Gigs service seeded ${gigsResponse.data.gigs?.length} gigs`, {operation});
       seededServices.push('gigs');
 
-      // 5. Seed Orders
-      const ordersResponse = await axios.post<SeedResponse>(`${config.ORDERS_BASE_URL}/seed/orders`, {
-        buyers: buyersResponse.data.buyers,
-        sellers: sellersResponse.data.sellers,
-        gigs: gigsResponse.data.gigs,
-      });
-      const ordersCount = ordersResponse.data?.counts?.orders ?? 0;
-      results.push({service: 'orders', status: ordersResponse.status, total: ordersCount});
-      AppLogger.info(`Orders service seeded ${ordersCount} orders`, {operation});
-      seededServices.push('orders');
-
-      // 6. NEW: Seed Reviews – chỉ các order COMPLETED có review
-      const completedOrders = (ordersResponse.data?.orders ?? [])
-        .filter((o: any) => o.status === 'COMPLETED' && (o.buyerReview || o.sellerReview))
-        .map((o: any) => ({
-          _id: o._id,
-          gigId: o.gigId,
-          buyerId: o.buyerId,
-          buyerUsername: o.buyerUsername,
-          buyerPicture: o.buyerPicture,
-          sellerId: o.sellerId,
-          sellerUsername: o.sellerUsername,
-          sellerPicture: o.sellerPicture,
-          buyerReview: o.buyerReview
-            ? {
-              _id: o.buyerReview._id,
-              rating: o.buyerReview.rating,
-              review: o.buyerReview.review,
-              timestamp: o.buyerReview.timestamp,
-            }
-            : undefined,
-          sellerReview: o.sellerReview
-            ? {
-              _id: o.sellerReview._id,
-              rating: o.sellerReview.rating,
-              review: o.sellerReview.review,
-              timestamp: o.sellerReview.timestamp,
-            }
-            : undefined,
-        }));
-
-      if (completedOrders.length > 0) {
-        const reviewsResponse = await axios.post(`${config.REVIEWS_BASE_URL}/seed/reviews`, {
-          completedOrders,
-        });
-        const reviewsSeeded = reviewsResponse.data?.stats?.totalReviewsSeeded ?? 0;
-        results.push({service: 'reviews', status: reviewsResponse.status, total: reviewsSeeded});
-        AppLogger.info(`Reviews service seeded ${reviewsSeeded} reviews (from ${completedOrders.length} completed orders)`, {operation});
-        seededServices.push('reviews');
-      } else {
-        results.push({service: 'reviews', status: 200, total: 0});
-        AppLogger.info('No completed orders with reviews → skipped reviews seeding', {operation});
-      }
+      // // 5. Seed Orders
+      // const ordersResponse = await axios.post<SeedResponse>(`${config.ORDERS_BASE_URL}/seed/orders`, {
+      //   buyers: buyersResponse.data.buyers,
+      //   sellers: sellersResponse.data.sellers,
+      //   gigs: gigsResponse.data.gigs,
+      // });
+      // const ordersCount = ordersResponse.data?.counts?.orders ?? 0;
+      // results.push({service: 'orders', status: ordersResponse.status, total: ordersCount});
+      // AppLogger.info(`Orders service seeded ${ordersCount} orders`, {operation});
+      // seededServices.push('orders');
+      //
+      // // 6. NEW: Seed Reviews – chỉ các order COMPLETED có review
+      // const completedOrders = (ordersResponse.data?.orders ?? [])
+      //   .filter((o: any) => o.status === 'COMPLETED' && (o.buyerReview || o.sellerReview))
+      //   .map((o: any) => ({
+      //     _id: o._id,
+      //     gigId: o.gigId,
+      //     buyerId: o.buyerId,
+      //     buyerUsername: o.buyerUsername,
+      //     buyerPicture: o.buyerPicture,
+      //     sellerId: o.sellerId,
+      //     sellerUsername: o.sellerUsername,
+      //     sellerPicture: o.sellerPicture,
+      //     buyerReview: o.buyerReview
+      //       ? {
+      //         _id: o.buyerReview._id,
+      //         rating: o.buyerReview.rating,
+      //         review: o.buyerReview.review,
+      //         timestamp: o.buyerReview.timestamp,
+      //       }
+      //       : undefined,
+      //     sellerReview: o.sellerReview
+      //       ? {
+      //         _id: o.sellerReview._id,
+      //         rating: o.sellerReview.rating,
+      //         review: o.sellerReview.review,
+      //         timestamp: o.sellerReview.timestamp,
+      //       }
+      //       : undefined,
+      //   }));
+      //
+      // if (completedOrders.length > 0) {
+      //   const reviewsResponse = await axios.post(`${config.REVIEWS_BASE_URL}/seed/reviews`, {
+      //     completedOrders,
+      //   });
+      //   const reviewsSeeded = reviewsResponse.data?.stats?.totalReviewsSeeded ?? 0;
+      //   results.push({service: 'reviews', status: reviewsResponse.status, total: reviewsSeeded});
+      //   AppLogger.info(`Reviews service seeded ${reviewsSeeded} reviews (from ${completedOrders.length} completed orders)`, {operation});
+      //   seededServices.push('reviews');
+      // } else {
+      //   results.push({service: 'reviews', status: 200, total: 0});
+      //   AppLogger.info('No completed orders with reviews → skipped reviews seeding', {operation});
+      // }
 
       return res.status(200).json({
         message: 'Seeding completed for ALL services (including Reviews)',

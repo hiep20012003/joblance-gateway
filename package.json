@@ -1,6 +1,6 @@
 {
   "name": "gateway-service",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "main": "app.js",
   "scripts": {
     "start": "dotenv -e .env.prod -- pm2 start ./build/src/app.js -i 5 --attach --watch",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@elastic/opentelemetry-node": "^1.6.0",
-    "@hiep20012003/joblance-shared": "^0.0.3",
+    "@hiep20012003/joblance-shared": "latest",
     "@socket.io/redis-adapter": "^8.3.0",
     "axios": "^1.12.2",
     "bcrypt": "^5.1.1",
