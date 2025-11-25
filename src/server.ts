@@ -1,12 +1,12 @@
 import http from 'http';
 
-import {Application, json, urlencoded, Request, Response, NextFunction} from 'express';
+import { Application, json, urlencoded, Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import hpp from 'hpp';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
-import {config} from '@gateway/config';
+import { config } from '@gateway/config';
 import {
   ApplicationError,
   DependencyError,
@@ -15,12 +15,12 @@ import {
   ErrorResponse,
   ResponseOptions
 } from '@hiep20012003/joblance-shared';
-import {appRoutes} from '@gateway/routes';
-import {AppLogger} from '@gateway/utils/logger';
+import { appRoutes } from '@gateway/routes';
+import { AppLogger } from '@gateway/utils/logger';
 import cookieSession from 'cookie-session';
-import {cacheStore} from '@gateway/cache/redis.connection';
-import {SocketsIOHandler} from '@gateway/sockets/sockets';
-import {isAxiosError} from 'axios';
+import { cacheStore } from '@gateway/cache/redis.connection';
+import { SocketsIOHandler } from '@gateway/sockets/sockets';
+import { isAxiosError } from 'axios';
 
 const SERVER_PORT = config.PORT || 4000;
 
@@ -50,19 +50,16 @@ export class GatewayServer {
         name: 'session',
         keys: [`${config.SECRET_KEY_ONE}`, `${config.SECRET_KEY_TWO}`],
         maxAge: 24 * 7 * 3600000,
-        secure: config.NODE_ENV !== 'dev',
-        ...(config.NODE_ENV !== 'dev' ? {
-          sameSite: 'none'
-        } : {
-          sameSite: 'lax',
-        })
+        secure: false,
+        sameSite: 'none',
+        domain: undefined,
       })
     );
     app.use(hpp());
     app.use(helmet());
     app.use(
       cors({
-        origin: config.CLIENT_URL,
+        origin: '*',
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
       })
@@ -82,7 +79,7 @@ export class GatewayServer {
         }
       })
     );
-    app.use(urlencoded({extended: true, limit: '200mb'}));
+    app.use(urlencoded({ extended: true, limit: '200mb' }));
   }
 
   private routesMiddleware(app: Application): void {
@@ -118,7 +115,7 @@ export class GatewayServer {
           }
         });
 
-        new ErrorResponse({...errorResponse}).send(res, true);
+        new ErrorResponse({ ...errorResponse }).send(res, true);
         return;
       }
 
@@ -137,7 +134,7 @@ export class GatewayServer {
           error: err.serialize()
         });
 
-        new ErrorResponse({...(err.serializeForClient() as ResponseOptions)}).send(res, true);
+        new ErrorResponse({ ...(err.serializeForClient() as ResponseOptions) }).send(res, true);
         return;
       }
 
@@ -164,7 +161,7 @@ export class GatewayServer {
         operation
       });
 
-      new ErrorResponse({...(serverError.serializeForClient() as ResponseOptions)}).send(res, true);
+      new ErrorResponse({ ...(serverError.serializeForClient() as ResponseOptions) }).send(res, true);
     });
 
     app.use('/*splat', (req: Request, res: Response, _next: NextFunction) => {
@@ -214,10 +211,10 @@ export class GatewayServer {
 
   private startHttpServer(httpServer: http.Server): void {
     try {
-      AppLogger.info(`Gateway server started with process id ${process.pid}`, {operation: 'server:http-start'});
+      AppLogger.info(`Gateway server started with process id ${process.pid}`, { operation: 'server:http-start' });
 
       httpServer.listen(SERVER_PORT, () => {
-        AppLogger.info(`Gateway server is running on port ${SERVER_PORT}`, {operation: 'server:http-listening'});
+        AppLogger.info(`Gateway server is running on port ${SERVER_PORT}`, { operation: 'server:http-listening' });
       });
 
     } catch (error) {

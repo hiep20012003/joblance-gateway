@@ -1,11 +1,11 @@
 import http from 'http';
 
-import {Server, Socket} from 'socket.io';
-import {config} from '@gateway/config';
-import {io as ioClient, Socket as SocketClient} from 'socket.io-client';
-import {AppLogger} from '@gateway/utils/logger';
-import {cacheStore} from '@gateway/cache/redis.connection';
-import {createAdapter} from '@socket.io/redis-adapter';
+import { Server, Socket } from 'socket.io';
+import { config } from '@gateway/config';
+import { io as ioClient, Socket as SocketClient } from 'socket.io-client';
+import { AppLogger } from '@gateway/utils/logger';
+import { cacheStore } from '@gateway/cache/redis.connection';
+import { createAdapter } from '@socket.io/redis-adapter';
 
 // Define custom properties on Socket (to store userId after authentication)
 interface CustomSocket extends Socket {
@@ -35,7 +35,7 @@ export class SocketsIOHandler {
     const subClient = pubClient.duplicate();
 
     this.io = new Server(httpServer, {
-      cors: {origin: '*', methods: ['GET', 'POST']},
+      cors: { origin: '*', methods: ['GET', 'POST'] },
       adapter: createAdapter(pubClient, subClient),
     });
 
@@ -63,12 +63,12 @@ export class SocketsIOHandler {
   /** ------------------------
    * Hàm hỗ trợ: Tuần tự hóa hành động Redis theo userId
    * ------------------------ */
-  private async enqueueUserAction(userId: string, actionFn: () => Promise<void>): Promise<void> {
+  private async enqueueUserAction(userId: string, actionFn: ()=> Promise<void>): Promise<void> {
     const currentPromise = this.userActionQueues.get(userId) || Promise.resolve();
 
     const newPromise = currentPromise
       .catch((error) => {
-        AppLogger.error(`Error in previous queued action for user ${userId}:`, {error});
+        AppLogger.error(`Error in previous queued action for user ${userId}:`, { error });
       })
       .then(actionFn);
 
@@ -97,7 +97,6 @@ export class SocketsIOHandler {
       const isCurrentlyOnline = await cacheStore.checkUserOnlineStatus('loggedInUsers', userId);
 
       if (!isCurrentlyOnline) {
-        AppLogger.info(`User ${userId} already OFFLINE. Skipping.`, {operation: 'gateway:client-presence:offline-skip'});
         return;
       }
 
@@ -110,12 +109,9 @@ export class SocketsIOHandler {
       await cacheStore.updateUserLastActive(userId, currentTimestampInSeconds);
 
       // Broadcast OFFLINE
-      const update = {userId, status: 'offline', timestamp: currentTimestampInSeconds};
+      const update = { userId, status: 'offline', timestamp: currentTimestampInSeconds };
       presenceNamespace.to(`broadcast:${userId}`).emit('presence:status:change', update);
 
-      AppLogger.info(`User ${userId} confirmed OFFLINE after 1-minute timeout. Last Active updated.`, {
-        operation: 'gateway:client-presence',
-      });
     });
   }
 
@@ -127,7 +123,6 @@ export class SocketsIOHandler {
       // Hủy Timer cũ (kéo dài thời gian sống online thêm 1 phút nữa)
       clearTimeout(this.heartbeatTimers.get(userId));
       this.heartbeatTimers.delete(userId);
-      AppLogger.info(`Heartbeat timer reset for user ${userId}.`, {operation: 'gateway:heartbeat-reset'});
     }
 
     // Đặt Timer mới 1 phút
@@ -159,9 +154,8 @@ export class SocketsIOHandler {
         // 1. Thêm user vào Redis SET (ONLINE)
 
         // Broadcast ONLINE
-        const update = {userId, status: 'online', timestamp: currentTimestampInSeconds};
+        const update = { userId, status: 'online', timestamp: currentTimestampInSeconds };
         presenceNamespace.to(`broadcast:${userId}`).emit('presence:status:change', update);
-        AppLogger.info(`User ${userId} broadcasted ONLINE status.`, {operation: 'gateway:client-presence'});
       }
 
       // Luôn reset/set Timer Heartbeat (1 phút)
@@ -184,7 +178,7 @@ export class SocketsIOHandler {
   private handleChatsServiceConnection(): void {
     const client = this.chatSocketClient;
     client.on('connect', () => {
-      AppLogger.info('ChatsService connected', {operation: 'gateway:chat-client'});
+      AppLogger.info('ChatsService connected', { operation: 'gateway:chat-client' });
     });
     client.on('message:send', (conversationId: string, data) => {
       this.io.of('/chats').to(`chat:${conversationId}`).emit('message:send', data);
@@ -200,7 +194,7 @@ export class SocketsIOHandler {
   private handleNotificationServiceConnection(): void {
     const client = this.notificationSocketClient;
     client.on('connect', () => {
-      AppLogger.info('NotificationsService connected', {operation: 'gateway:notification-client'});
+      AppLogger.info('NotificationsService connected', { operation: 'gateway:notification-client' });
     });
     client.on('notification:new', (recipientId: string, data) => {
       this.io.of('/notifications').to(`notifications:${recipientId}`).emit('notification:new', data);
@@ -227,7 +221,7 @@ export class SocketsIOHandler {
     // **********************************************
     const chatsNamespace = this.io.of('/chats');
     chatsNamespace.on('connection', (socket: CustomSocket) => {
-      AppLogger.info(`Client connected to /chats: ${socket.id}`, {operation: 'gateway:client-chat'});
+      AppLogger.info(`Client connected to /chats: ${socket.id}`, { operation: 'gateway:client-chat' });
 
       socket.on('chat:authenticate', (userId: string) => {
         socket.userId = userId;
@@ -244,7 +238,7 @@ export class SocketsIOHandler {
 
           await socket.join(`chat:${conversationId}`);
           await cacheStore.setEx(`user:current_room:${userId}`, 3600, conversationId);
-          AppLogger.info(`User ${userId} joined chat room: ${conversationId}`, {operation: 'gateway:client-chat'});
+          AppLogger.info(`User ${userId} joined chat room: ${conversationId}`, { operation: 'gateway:client-chat' });
         }
       });
 
@@ -252,7 +246,7 @@ export class SocketsIOHandler {
         if (socket.userId) {
           await socket.leave(`chat:${conversationId}`);
           await cacheStore.setEx(`user:current_room:${socket.userId}`, 60, 'none'); // Short TTL for handling reconnects
-          AppLogger.info(`User ${socket.userId} left chat room: ${conversationId}`, {operation: 'gateway:client-chat'});
+          AppLogger.info(`User ${socket.userId} left chat room: ${conversationId}`, { operation: 'gateway:client-chat' });
         }
       });
 
@@ -268,12 +262,12 @@ export class SocketsIOHandler {
     // **********************************************
     const notificationsNamespace = this.io.of('/notifications');
     notificationsNamespace.on('connection', (socket: CustomSocket) => {
-      AppLogger.info(`Client connected to /notifications: ${socket.id}`, {operation: 'gateway:client-notification'});
+      AppLogger.info(`Client connected to /notifications: ${socket.id}`, { operation: 'gateway:client-notification' });
 
       socket.on('notifications:join', async (userId: string) => {
         socket.userId = userId;
         await socket.join(`notifications:${userId}`);
-        AppLogger.info(`User ${userId} joined notifications room.`, {operation: 'gateway:client-notification'});
+        AppLogger.info(`User ${userId} joined notifications room.`, { operation: 'gateway:client-notification' });
       });
 
       socket.on('notifications:leave', async (userId: string) => {
@@ -290,7 +284,7 @@ export class SocketsIOHandler {
     // **********************************************
     const presenceNamespace = this.io.of('/presence');
     presenceNamespace.on('connection', (socket: CustomSocket) => {
-      AppLogger.info(`Client connected to /presence: ${socket.id}`, {operation: 'gateway:client-presence'});
+      AppLogger.info(`Client connected to /presence: ${socket.id}`, { operation: 'gateway:client-presence' });
 
       // 1. Authenticate user and set ONLINE status
       socket.on('presence:join', async (userId: string) => {
@@ -307,17 +301,17 @@ export class SocketsIOHandler {
       // Topic-Based Fan-out Subscription (Giữ nguyên)
       socket.on('presence:subscribe', async (friendIds: string[]) => {
         if (!socket.userId) {
-          AppLogger.warn('Cannot watch presence without user ID.', {operation: 'gateway:client-presence'});
+          AppLogger.warn('Cannot watch presence without user ID.', { operation: 'gateway:client-presence' });
           return;
         }
         const roomsToJoin = friendIds.filter(id => !socket.rooms.has(`broadcast:${id}`)).map(id => `broadcast:${id}`);
         await socket.join(roomsToJoin);
-        AppLogger.info(`User ${socket.userId} joined ${roomsToJoin.length} presence broadcast topics.`, {operation: 'gateway:client-presence:watch'});
+        AppLogger.info(`User ${socket.userId} joined ${roomsToJoin.length} presence broadcast topics.`, { operation: 'gateway:client-presence:watch' });
       });
 
       socket.on('presence:unsubscribe', async (friendIds: string[]) => {
         if (!socket.userId) {
-          AppLogger.warn('Cannot watch presence without user ID.', {operation: 'gateway:client-presence'});
+          AppLogger.warn('Cannot watch presence without user ID.', { operation: 'gateway:client-presence' });
           return;
         }
         for (const id of friendIds) {
@@ -335,7 +329,7 @@ export class SocketsIOHandler {
       // 3. Status Sync Handler (Vẫn dùng Redis SET/ZSET cũ)
       socket.on('presence:get_status', async (userIds: string[]) => {
         if (!socket.userId) {
-          AppLogger.warn('Cannot get status batch without user ID.', {operation: 'gateway:client-presence:initial-sync'});
+          AppLogger.warn('Cannot get status batch without user ID.', { operation: 'gateway:client-presence:initial-sync' });
           return;
         }
 
@@ -343,7 +337,7 @@ export class SocketsIOHandler {
           // SỬ DỤNG LOGIC CŨ: checkUsersOnlineStatus dựa trên Redis SET
           const onlineStatusArray = await cacheStore.checkUsersOnlineStatus('loggedInUsers', userIds);
           if (!onlineStatusArray) {
-            AppLogger.warn('Failed to fetch online status array.', {operation: 'gateway:client-presence:initial-sync'});
+            AppLogger.warn('Failed to fetch online status array.', { operation: 'gateway:client-presence:initial-sync' });
             return;
           }
 
@@ -394,13 +388,13 @@ export class SocketsIOHandler {
 
           AppLogger.warn(`Client disconnected from /presence: ${socket.id}, User: ${userId}. Relying on existing 1-minute Heartbeat Timer to determine OFFLINE status.`, {
             operation: 'gateway:client-presence',
-            context: {reason}
+            context: { reason }
           });
 
         } else {
           AppLogger.info(`Client disconnected from /presence: ${socket.id}`, {
             operation: 'gateway:client-presence',
-            context: {reason}
+            context: { reason }
           });
         }
       });
@@ -410,7 +404,7 @@ export class SocketsIOHandler {
     // Default namespace
     // **********************************************
     this.io.on('connection', (socket: CustomSocket) => {
-      AppLogger.info(`Client connected to default namespace: ${socket.id}`, {operation: 'gateway:client-default'});
+      AppLogger.info(`Client connected to default namespace: ${socket.id}`, { operation: 'gateway:client-default' });
 
       socket.on('authenticate', (userId: string) => {
         socket.userId = userId;
