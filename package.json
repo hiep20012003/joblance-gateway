@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@elastic/opentelemetry-node": "^1.6.0",
-    "@hiep20012003/joblance-shared": "latest",
+    "@hiep20012003/joblance-shared": "^0.0.5",
     "@socket.io/redis-adapter": "^8.3.0",
     "axios": "^1.12.2",
     "bcrypt": "^5.1.1",

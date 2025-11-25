@@ -1,14 +1,14 @@
-import {NextFunction, Request, Response} from 'express';
-import {BaseController} from '@gateway/controllers/base.controller';
-import {AuthService} from '@gateway/services/api/auth.service';
-import {cacheStore} from '@gateway/cache/redis.connection';
+import { NextFunction, Request, Response } from 'express';
+import { BaseController } from '@gateway/controllers/base.controller';
+import { AuthService } from '@gateway/services/api/auth.service';
+import { cacheStore } from '@gateway/cache/redis.connection';
 import {
   IAuth, IAuthDocument,
   JwtPayload,
   SuccessResponse
 } from '@hiep20012003/joblance-shared';
-import {ReasonPhrases, StatusCodes} from 'http-status-codes';
-import {GatewayServer} from '@gateway/server';
+import { ReasonPhrases, StatusCodes } from 'http-status-codes';
+import { GatewayServer } from '@gateway/server';
 
 export class AuthController extends BaseController {
   private readonly authService: AuthService;
@@ -72,13 +72,13 @@ export class AuthController extends BaseController {
           this.authService.setHeader(forwardedHeader).login(payload)
         ]);
 
-        const {user, refreshToken, accessToken} = authResult.data as
+        const { user, refreshToken, accessToken } = authResult.data as
           {
             user: IAuthDocument, refreshToken: { token: string; exp: number };
             accessToken: { token: string; exp: number };
           };
 
-        req.session = {accessToken: accessToken.token, refreshToken: refreshToken.token};
+        req.session = { accessToken: accessToken.token, refreshToken: refreshToken.token };
 
         // if (user.id) {
         //   const loggedInUsers = await cacheStore.saveLoggedInUserToCache('loggedInUsers', user.id);
@@ -110,13 +110,13 @@ export class AuthController extends BaseController {
       this.buildOperation('auth', 'user', 'refresh'),
       async (forwardedHeader) => {
 
-        const {refreshToken} = req.session as {
+        const { refreshToken } = req.session as {
           refreshToken: string
         };
 
         const result = await this.authService.setHeader(forwardedHeader).refreshToken(refreshToken);
 
-        req.session = {accessToken: result.data.accessToken.token, refreshToken: result.data.refreshToken.token};
+        req.session = { accessToken: result.data.accessToken.token, refreshToken: result.data.refreshToken.token };
 
         // if (result?.data?.user?.id) {
         //   const loggedInUsers = await cacheStore.saveLoggedInUserToCache('loggedInUsers', result.data.user.id as string);
@@ -148,7 +148,7 @@ export class AuthController extends BaseController {
       res,
       this.buildOperation('auth', 'user', 'logout'),
       async (forwardedHeader) => {
-        const {jti, exp} = req.currentUser as JwtPayload;
+        const { jti, exp } = req.currentUser as JwtPayload;
 
         const response = await this.authService.setHeader(forwardedHeader).logout();
         //
@@ -171,7 +171,7 @@ export class AuthController extends BaseController {
       res,
       this.buildOperation('auth', 'user', 'forgot-password'),
       async (forwardedHeader) => {
-        const {email} = req.body as IAuth;
+        const { email } = req.body as IAuth;
 
         return this.authService.setHeader(forwardedHeader).forgotPassword(email!);
       }
@@ -197,7 +197,7 @@ export class AuthController extends BaseController {
       res,
       this.buildOperation('auth', 'user', 'resend-email-verification'),
       async (forwardedHeader) => {
-        const {email} = req.body as IAuth;
+        const { email } = req.body as IAuth;
         return this.authService.setHeader(forwardedHeader).resendEmailVerification(email!);
       }
     );
@@ -209,7 +209,7 @@ export class AuthController extends BaseController {
       res,
       this.buildOperation('auth', 'user', 'verify-email'),
       async (forwardedHeader) => {
-        res.cookie('verificationEmailSuccess', true, {httpOnly: false, secure: false, maxAge: 60 * 60 * 1000});
+        res.cookie('verificationEmailSuccess', true, { httpOnly: false, secure: false, maxAge: 60 * 60 * 1000 });
         return this.authService.setHeader(forwardedHeader).verifyEmail(req.body);
       }
     );
@@ -221,7 +221,7 @@ export class AuthController extends BaseController {
       res,
       this.buildOperation('auth', 'user', 'change-password'),
       async (forwardedHeader) => {
-        return this.authService.setHeader(forwardedHeader).changePassword(req.body);
+        return this.authService.setHeader(forwardedHeader).changePassword({ id: req?.currentUser?.sub, ...req.body });
       }
     );
   };
