@@ -10,7 +10,7 @@ class HealthRoutes {
   }
 
   public routes(): Router {
-    this.router.get('/health', this.healController.health);
+    this.router.get('/gateway-health', this.healController.health);
     return this.router;
   }
 }
