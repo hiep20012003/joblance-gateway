@@ -1,48 +1,34 @@
-import {Request} from 'express';
-import {cacheStore} from '@gateway/cache/redis.connection';
-import {JwtPayload} from '@hiep20012003/joblance-shared';
+import { Request } from 'express';
+import { JwtPayload } from '@hiep20012003/joblance-shared';
 import jwt from 'jsonwebtoken';
-import {config} from '@gateway/config';
-import {AppLogger} from '@gateway/utils/logger';
+import { config } from '@gateway/config';
 import FormData from 'form-data';
 
 export const generateInternalTokenHeader = async (
   options: { req?: Request; retryToken?: string }
 ): Promise<string> => {
-  const {req, retryToken} = options;
+  const { req, retryToken } = options;
   const accessToken = req?.session?.accessToken as string;
 
   let retryTokenPayload: JwtPayload | null = null;
   if (retryToken) {
     retryTokenPayload = jwt.decode(retryToken) as JwtPayload | null;
-    if (retryTokenPayload?.sub) {
-      await cacheStore.del(`gateway:internal_token:user:${retryTokenPayload.sub}`);
-    }
   }
 
-  // Decode accessToken to get user payload
   let accessTokenPayload: JwtPayload | null = null;
   if (accessToken) {
     accessTokenPayload = jwt.decode(accessToken) as JwtPayload | null;
   }
 
-  const sub = retryTokenPayload?.sub ?? accessTokenPayload?.sub;
-  const cacheKey = sub
-    ? `gateway:internal_token:user:${sub}`
-    : `gateway:internal_token:user:guest`;
-
-  // Return cached token if exists
-  let internalToken = await cacheStore.get(cacheKey);
-  if (internalToken) return internalToken;
+  const sub = retryTokenPayload?.sub ?? accessTokenPayload?.sub ?? 'guest';
 
   // Default payload
   let payload: JwtPayload = {
     iss: 'gateway',
     aud: req?.audience ?? retryTokenPayload?.aud ?? '',
-    sub: 'guest',
+    sub: sub
   };
 
-  // Merge accessToken payload if available
   if (accessTokenPayload?.sub) {
     payload = {
       ...payload,
@@ -65,16 +51,11 @@ export const generateInternalTokenHeader = async (
   }
 
   // Sign new internal token
-  internalToken = jwt.sign(payload, config.GATEWAY_SECRET_KEY, {
+  return jwt.sign(payload, config.GATEWAY_SECRET_KEY, {
     expiresIn: Number(config.INTERNAL_TOKEN_EXPIRES_IN),
   });
 
-  // Cache token
-  await cacheStore.setEx(cacheKey, Number(config.INTERNAL_TOKEN_EXPIRES_IN), internalToken);
-
-  AppLogger.info('Generated new internal token', {operation: 'gateway:internal-token'});
-
-  return internalToken;
+  // AppLogger.info('Generated new internal token', {operation: 'gateway:internal-token'});
 };
 
 
